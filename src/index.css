@@ -1,0 +1,166 @@
+/* DataFlow Suite — Global Styles (no Tailwind dependency) */
+
+:root {
+  --brand: #534AB7;
+  --brand-light: #EEEDFE;
+  --brand-border: #AFA9EC;
+  --teal: #1D9E75;
+  --teal-light: #E1F5EE;
+  --amber: #BA7517;
+  --amber-light: #FAEEDA;
+  --danger: #E24B4A;
+  --danger-light: #FCEBEB;
+  --sidebar-width: 220px;
+  --topbar-height: 48px;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #f5f5f4;
+  color: #1a1a18;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;       /* App manages its own scroll regions */
+  user-select: none;
+}
+
+/* Allow text selection inside inputs and content areas */
+input, textarea, [data-selectable] { user-select: text; }
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d0cec6; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #b0aea6; }
+
+/* ── Form elements ────────────────────────────────────────────────────────── */
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: 13px;
+  background: white;
+  border: 0.5px solid #d0cec6;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  outline: none;
+  width: 100%;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(83, 74, 183, 0.12);
+}
+input:disabled, textarea:disabled, select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  padding: 0;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+button { font-family: inherit; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+.btn-primary  { background: var(--brand); color: white; }
+.btn-primary:hover:not(:disabled) { background: #3C3489; }
+
+.btn-secondary { background: white; color: #3d3d3a; border-color: #d0cec6; }
+.btn-secondary:hover:not(:disabled) { background: #f5f5f4; }
+
+.btn-ghost { background: transparent; color: #73726c; border-color: transparent; }
+.btn-ghost:hover:not(:disabled) { background: #f0ede8; color: #1a1a18; }
+
+.btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: #c73736; }
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+
+.card {
+  background: white;
+  border: 0.5px solid #e8e6e0;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+/* ── Labels ───────────────────────────────────────────────────────────────── */
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #73726c;
+  margin-bottom: 5px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Pills / badges ───────────────────────────────────────────────────────── */
+
+.pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  line-height: 1.4;
+}
+.pill-purple { background: var(--brand-light); color: #3C3489; }
+.pill-teal   { background: var(--teal-light);  color: #085041; }
+.pill-amber  { background: var(--amber-light); color: #633806; }
+.pill-danger { background: var(--danger-light);color: #791F1F; }
+.pill-gray   { background: #f0ede8;            color: #5F5E5A; }
+
+/* ── Divider ──────────────────────────────────────────────────────────────── */
+
+.divider { height: 0.5px; background: #e8e6e0; margin: 16px 0; }
+
+/* ── Status dots ──────────────────────────────────────────────────────────── */
+
+.dot-complete { color: var(--teal); }
+.dot-active   { color: var(--brand); }
+.dot-pending  { color: #b0aea6; }
+
+/* ── Utility ──────────────────────────────────────────────────────────────── */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); border: 0;
+}
