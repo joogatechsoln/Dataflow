@@ -41,7 +41,7 @@ git push -u origin main
 |---|---|---|
 | `VITE_SUPABASE_URL` | `https://xxxxx.supabase.co` | Supabase → Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | `eyJhbGci...` | Supabase → Settings → API |
-| `VITE_PLAUSIBLE_DOMAIN` | `yourdomain.com` | Optional — Plausible dashboard |
+| `VITE_APP_URL` | `https://your-app.vercel.app` | Your deployed Vercel URL |
 
 ### 4. Set up Supabase
 
@@ -106,7 +106,7 @@ src/
 │   ├── useCloudSync.ts             # Real-time project sync hook
 │   ├── useLicense.ts               # Plan/trial/Pro feature gates
 │   ├── useShortcuts.ts             # Global keyboard shortcut registry
-│   ├── analytics.ts                # Plausible opt-in event logger
+│   ├── analytics.ts                # Vercel Analytics event logger
 │   ├── RealPDFExport.ts            # pdf-lib PDF generation
 │   └── RealPPTXExport.ts           # pptxgenjs PPTX generation (Pro)
 ├── store/

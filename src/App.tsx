@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/authStore";
 import { useLicenseStore } from "./store/licenseStore";
@@ -148,6 +149,7 @@ export default function App() {
       <GlobalErrorBoundary>
         {isAuthenticated ? <AppShell /> : <AuthPage />}
       </GlobalErrorBoundary>
+      <Analytics />
     </BrowserRouter>
   );
 }
