@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { Analytics } from "@vercel/analytics/react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./store/authStore";
 import { useLicenseStore } from "./store/licenseStore";
 import { useProjectStore, PipelineStep } from "./store/projectStore";
@@ -50,8 +50,11 @@ function useSupabaseSessionSync() {
       });
     });
 
-    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
-      if (!session) { useAuthStore.getState().logout(); return; }
+    const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        if (event === "SIGNED_OUT") useAuthStore.getState().logout();
+        return;
+      }
       const u = session.user;
       login({
         id: u.id,
@@ -75,8 +78,6 @@ function AppShell() {
   const [notifsOpen, setNotifsOpen] = useState(false);
   const onboardingComplete = useLicenseStore((s) => s.onboardingComplete);
   const { setActivePipelineTab } = useProjectStore();
-
-  useSupabaseSessionSync();
 
   useEffect(() => {
     const handler = () => setAiOpen((o) => !o);
@@ -123,6 +124,7 @@ function AppShell() {
               <Route path="/learn"       element={<ComponentErrorBoundary name="Learn Hub"><LearnHub /></ComponentErrorBoundary>} />
               <Route path="/team"        element={<ComponentErrorBoundary name="Team"><TeamWorkspace /></ComponentErrorBoundary>} />
               <Route path="/admin"       element={<ComponentErrorBoundary name="Admin"><AdminDashboard /></ComponentErrorBoundary>} />
+              <Route path="/permissions" element={<Navigate to="/settings" replace />} />
               <Route path="/marketplace" element={<ComponentErrorBoundary name="Marketplace"><PluginMarketplace /></ComponentErrorBoundary>} />
               <Route path="*"            element={<Navigate to="/" />} />
             </Routes>
@@ -142,12 +144,26 @@ function AppShell() {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-export default function App() {
+function AuthGate() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const location = useLocation();
+
+  useSupabaseSessionSync();
+
+  if (!isAuthenticated) return <AuthPage />;
+
+  if (["/auth", "/auth/callback", "/login", "/signin", "/signup"].includes(location.pathname)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <AppShell />;
+}
+
+export default function App() {
   return (
     <BrowserRouter>
       <GlobalErrorBoundary>
-        {isAuthenticated ? <AppShell /> : <AuthPage />}
+        <AuthGate />
       </GlobalErrorBoundary>
       <Analytics />
     </BrowserRouter>
