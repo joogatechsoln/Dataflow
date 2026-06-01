@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useProjectStore } from "../../store/projectStore";
 import { useNavigate } from "react-router-dom";
+import { currentUserId, deleteCloudProject, pushProject, saveVersion } from "../../lib/supabase";
 
 const STEP_LABELS = ["Define", "Collect", "Clean", "Analyze", "Visualize", "Report"];
 const STEP_KEYS = ["define", "collect", "clean", "analyze", "visualize", "report"] as const;
@@ -12,18 +13,46 @@ export default function Dashboard() {
   const [newDesc, setNewDesc] = useState("");
   const navigate = useNavigate();
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim()) return;
     const project = createProject(newName.trim(), newDesc.trim());
     setActiveProject(project.id);
     setActivePipelineTab("define");
     setNewName(""); setNewDesc(""); setShowNew(false);
     navigate("/pipeline");
+
+    try {
+      const cloudUserId = await currentUserId();
+      if (!cloudUserId) return;
+
+      const data = project as unknown as Record<string, unknown>;
+      await pushProject({
+        id: project.id,
+        team_id: null,
+        owner_id: cloudUserId,
+        name: project.name,
+        description: project.description,
+        data,
+      });
+      await saveVersion(project.id, data, cloudUserId, "Created project");
+    } catch (err) {
+      console.warn("Project created locally but cloud sync failed:", err);
+    }
   };
 
   const openProject = (id: string) => {
     setActiveProject(id);
     navigate("/pipeline");
+  };
+
+  const handleDelete = async (id: string) => {
+    deleteProject(id);
+    try {
+      const cloudUserId = await currentUserId();
+      if (cloudUserId) await deleteCloudProject(id);
+    } catch (err) {
+      console.warn("Project deleted locally but cloud delete failed:", err);
+    }
   };
 
   return (
@@ -100,7 +129,7 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(project.id); }}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "#d0cec6", fontSize: 16, padding: 2, lineHeight: 1 }}
                   title="Delete project">×</button>
               </div>

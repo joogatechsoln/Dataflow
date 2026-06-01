@@ -14,7 +14,7 @@ interface ImportedTable {
 }
 
 export default function Collect() {
-  const { activeProjectId } = useProjectStore();
+  const { activeProjectId, addDataSource } = useProjectStore();
   const [tables, setTables] = useState<ImportedTable[]>([]);
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -29,12 +29,25 @@ export default function Collect() {
     for (const file of arr) {
       const result = await importFile(file, undefined, activeProjectId ?? undefined);
       results.push({ result, importedAt: new Date().toISOString() });
+      if (activeProjectId && result.fileId && !result.error) {
+        addDataSource(activeProjectId, {
+          id: result.fileId,
+          type: result.fileName.toLowerCase().endsWith(".json")
+            ? "api"
+            : result.fileName.toLowerCase().endsWith(".csv") || result.fileName.toLowerCase().endsWith(".tsv")
+              ? "csv"
+              : "excel",
+          name: result.fileName,
+          connected: true,
+          config: { tableName: result.tableName },
+        });
+      }
     }
     setTables((prev) => [...prev, ...results]);
     const errors = results.filter((r) => r.result.error);
     if (errors.length) setError(errors.map((r) => `${r.result.fileName}: ${r.result.error}`).join("\n"));
     setImporting(false);
-  }, [activeProjectId]);
+  }, [activeProjectId, addDataSource]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);

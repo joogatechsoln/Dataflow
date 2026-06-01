@@ -106,6 +106,13 @@ export function isSupabaseConfigured(): boolean {
 export async function signInWithEmail(email: string, password: string) {
   const { data, error } = await requireSupabase().auth.signInWithPassword({ email, password });
   if (error) throw error;
+  if (data.user) {
+    await ensureProfile(
+      data.user.id,
+      data.user.email ?? email,
+      data.user.user_metadata?.name ?? email.split("@")[0]
+    );
+  }
   return data;
 }
 
@@ -121,12 +128,7 @@ export async function signUpWithEmail(email: string, password: string, name: str
 
   // Insert profile row
   if (data.user) {
-    await sb.from("profiles").upsert({
-      id: data.user.id,
-      email,
-      name,
-      plan: "solo",
-    });
+    await ensureProfile(data.user.id, email, name);
   }
   return data;
 }
@@ -172,6 +174,15 @@ export async function getProfile(userId: string): Promise<DbProfile | null> {
   return data as DbProfile;
 }
 
+export async function ensureProfile(userId: string, email: string, name: string): Promise<void> {
+  const { error } = await requireSupabase().from("profiles").upsert({
+    id: userId,
+    email,
+    name: name || email.split("@")[0] || "User",
+  });
+  if (error) throw error;
+}
+
 export async function updateProfile(userId: string, updates: Partial<DbProfile>) {
   const { error } = await requireSupabase()
     .from("profiles")
@@ -184,6 +195,15 @@ export async function updateProfile(userId: string, updates: Partial<DbProfile>)
 
 export async function createTeam(name: string, ownerId: string): Promise<DbTeam> {
   const sb = requireSupabase();
+  const { data: authUser } = await sb.auth.getUser();
+  if (authUser.user?.id === ownerId) {
+    await ensureProfile(
+      ownerId,
+      authUser.user.email ?? "",
+      authUser.user.user_metadata?.name ?? authUser.user.email?.split("@")[0] ?? "User"
+    );
+  }
+
   const { data, error } = await sb
     .from("teams")
     .insert({ name, owner_id: ownerId })

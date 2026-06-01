@@ -236,7 +236,7 @@ export default function TeamWorkspace() {
 
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-        {tab === "overview" && <OverviewTab stats={stats} members={members} syncProject={syncProject} projects={projects} />}
+        {tab === "overview" && <OverviewTab stats={stats} members={members} myRole={myRole} syncProject={syncProject} projects={projects} />}
         {tab === "members" && (
           <MembersTab
             members={members}
@@ -293,7 +293,7 @@ function SyncIndicator({ sync }: { sync: { syncing: boolean; lastSynced: string 
   return <span style={{ fontSize: 11, color: "#9e9b94" }}>Not synced</span>;
 }
 
-function OverviewTab({ stats, members, syncProject, projects }: { stats: { memberCount: number; projectCount: number }; members: ReturnType<typeof useTeamStore.getState>["members"]; syncProject: (id: string) => Promise<void>; projects: ReturnType<typeof useProjectStore.getState>["projects"] }) {
+function OverviewTab({ stats, members, myRole, syncProject, projects }: { stats: { memberCount: number; projectCount: number }; members: ReturnType<typeof useTeamStore.getState>["members"]; myRole: TeamRole | null; syncProject: (id: string) => Promise<void>; projects: ReturnType<typeof useProjectStore.getState>["projects"] }) {
   return (
     <div>
       {/* Stats cards */}
@@ -301,7 +301,7 @@ function OverviewTab({ stats, members, syncProject, projects }: { stats: { membe
         {[
           { label: "Members", value: stats.memberCount, icon: "👥" },
           { label: "Projects", value: stats.projectCount, icon: "📁" },
-          { label: "Role", value: "Owner", icon: "🔑" },
+          { label: "Role", value: myRole ? roleLabel(myRole) : "None", icon: "🔑" },
         ].map((s) => (
           <div key={s.label} style={{ padding: "14px 16px", background: "white", border: "0.5px solid #e8e6e0", borderRadius: 10 }}>
             <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>

@@ -10,7 +10,7 @@ import { useAuthStore } from "./store/authStore";
 import { useLicenseStore } from "./store/licenseStore";
 import { useProjectStore, PipelineStep } from "./store/projectStore";
 import { useShortcuts, ShortcutHintsOverlay } from "./lib/useShortcuts";
-import { getSupabase } from "./lib/supabase";
+import { ensureProfile, getSupabase } from "./lib/supabase";
 import CommandPalette from "./components/CommandPalette/CommandPalette";
 import NotificationsPanel from "./components/Notifications/NotificationsPanel";
 import { GlobalErrorBoundary, ComponentErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -41,6 +41,11 @@ function useSupabaseSessionSync() {
       const session = data.session;
       if (!session) return;
       const u = session.user;
+      ensureProfile(
+        u.id,
+        u.email ?? "",
+        u.user_metadata?.name ?? u.email?.split("@")[0] ?? "User"
+      ).catch(console.error);
       login({
         id: u.id,
         name: u.user_metadata?.name ?? u.email?.split("@")[0] ?? "User",
@@ -56,6 +61,11 @@ function useSupabaseSessionSync() {
         return;
       }
       const u = session.user;
+      ensureProfile(
+        u.id,
+        u.email ?? "",
+        u.user_metadata?.name ?? u.email?.split("@")[0] ?? "User"
+      ).catch(console.error);
       login({
         id: u.id,
         name: u.user_metadata?.name ?? u.email?.split("@")[0] ?? "User",

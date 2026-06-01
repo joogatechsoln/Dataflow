@@ -14,6 +14,7 @@ import { registerCSV, registerBuffer } from "./duckdb";
 import { saveFile } from "./db";
 
 export interface ImportResult {
+  fileId?: string;
   tableName: string;
   fileName: string;
   rowCount: number;
@@ -82,9 +83,11 @@ async function importCSV(
   await registerCSV(tableName, text);
 
   // Persist raw content in IndexedDB for later use
+  let fileId: string | undefined;
   if (projectId) {
+    fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await saveFile({
-      id:         `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id:         fileId,
       projectId,
       name:       file.name,
       type:       "csv",
@@ -100,6 +103,7 @@ async function importCSV(
   const rowCount = Number(countResult.rows[0]?.n ?? preview.data.length);
 
   return {
+    fileId,
     tableName,
     fileName:    file.name,
     rowCount,
@@ -131,9 +135,11 @@ async function importExcel(
 
   await registerCSV(tableName, csvContent);
 
+  let fileId: string | undefined;
   if (projectId) {
+    fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await saveFile({
-      id:         `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id:         fileId,
       projectId,
       name:       file.name,
       type:       "excel",
@@ -144,6 +150,7 @@ async function importExcel(
   }
 
   return {
+    fileId,
     tableName,
     fileName:   file.name,
     rowCount:   jsonData.length,
@@ -181,9 +188,11 @@ async function importJSON(
 
   await registerCSV(tableName, csvContent);
 
+  let fileId: string | undefined;
   if (projectId) {
+    fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await saveFile({
-      id:         `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id:         fileId,
       projectId,
       name:       file.name,
       type:       "json",
@@ -194,6 +203,7 @@ async function importJSON(
   }
 
   return {
+    fileId,
     tableName,
     fileName:   file.name,
     rowCount:   arr.length,

@@ -147,7 +147,7 @@ export default function AdminDashboard() {
           <div style={s.emptyState}>Loading…</div>
         ) : (
           <>
-            {tab === "overview" && <OverviewTab stats={stats} members={members} />}
+            {tab === "overview" && <OverviewTab stats={stats} members={members} pendingInviteCount={invites.length} />}
             {tab === "members" && (
               <MembersTab
                 members={members}
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
 
 // ─── Overview tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ stats, members }: { stats: { memberCount: number; projectCount: number }; members: DbTeamMember[] }) {
+function OverviewTab({ stats, members, pendingInviteCount }: { stats: { memberCount: number; projectCount: number }; members: DbTeamMember[]; pendingInviteCount: number }) {
   const roleBreakdown = members.reduce<Record<string, number>>((acc, m) => {
     acc[m.role] = (acc[m.role] ?? 0) + 1;
     return acc;
@@ -185,7 +185,7 @@ function OverviewTab({ stats, members }: { stats: { memberCount: number; project
   const cards = [
     { label: "Total Members", value: stats.memberCount, icon: "👥", color: "#534AB7" },
     { label: "Cloud Projects", value: stats.projectCount, icon: "📁", color: "#1D9E75" },
-    { label: "Pending Invites", value: 0, icon: "📬", color: "#BA7517" },
+    { label: "Pending Invites", value: pendingInviteCount, icon: "📬", color: "#BA7517" },
   ];
 
   return (

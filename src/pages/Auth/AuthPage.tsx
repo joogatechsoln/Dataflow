@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { useAuthStore } from "../../store/authStore";
 import { User } from "../../store/authStore";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import SupabaseAuthPage from "./SupabaseAuthPage";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [authProvider, setAuthProvider] = useState<"local" | "cloud">("local");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const cloudAuthAvailable = isSupabaseConfigured();
 
   const getInitials = (n: string) =>
     n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
@@ -34,6 +38,10 @@ export default function AuthPage() {
     login(user);
     setLoading(false);
   };
+
+  if (authProvider === "cloud") {
+    return <SupabaseAuthPage onBack={() => setAuthProvider("local")} />;
+  }
 
   return (
     <div style={{
@@ -98,10 +106,25 @@ export default function AuthPage() {
               {mode === "login" ? "Sign up free" : "Sign in"}
             </span>
           </p>
+
+          {cloudAuthAvailable && (
+            <>
+              <div className="divider" />
+              <button
+                className="btn btn-secondary"
+                onClick={() => setAuthProvider("cloud")}
+                style={{ width: "100%", justifyContent: "center", height: 38 }}
+              >
+                Sign in with cloud account
+              </button>
+            </>
+          )}
         </div>
 
         <p style={{ textAlign: "center", fontSize: 11, color: "#b0aea6", marginTop: 16 }}>
-          Your data stays on your device. No tracking.
+          {cloudAuthAvailable
+            ? "Local accounts stay on this device. Cloud accounts sync with Supabase."
+            : "Your data stays on your device. Configure Supabase to enable cloud sync."}
         </p>
       </div>
     </div>
