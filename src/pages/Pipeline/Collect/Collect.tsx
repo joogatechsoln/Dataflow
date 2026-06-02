@@ -7,6 +7,7 @@ import { useState, useRef, useCallback } from "react";
 import { useProjectStore } from "../../../store/projectStore";
 import { importFile, formatFileSize, ImportResult } from "../../../lib/fileImport";
 import { initDuckDB } from "../../../lib/duckdb";
+import { currentUserId, pushProject, saveVersion } from "../../../lib/supabase";
 
 interface ImportedTable {
   result: ImportResult;
@@ -14,7 +15,7 @@ interface ImportedTable {
 }
 
 export default function Collect() {
-  const { activeProjectId, addDataSource } = useProjectStore();
+  const { activeProjectId, addDataSource, updateStepStatus } = useProjectStore();
   const [tables, setTables] = useState<ImportedTable[]>([]);
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -43,11 +44,34 @@ export default function Collect() {
         });
       }
     }
+    if (activeProjectId && results.some((r) => r.result.fileId && !r.result.error)) {
+      updateStepStatus(activeProjectId, "collect", "complete");
+      updateStepStatus(activeProjectId, "clean", "active");
+
+      try {
+        const userId = await currentUserId();
+        const latestProject = useProjectStore.getState().projects.find((p) => p.id === activeProjectId);
+        if (userId && latestProject) {
+          const data = latestProject as unknown as Record<string, unknown>;
+          await pushProject({
+            id: latestProject.id,
+            team_id: null,
+            owner_id: userId,
+            name: latestProject.name,
+            description: latestProject.description,
+            data,
+          });
+          await saveVersion(latestProject.id, data, userId, "Imported data sources");
+        }
+      } catch (err) {
+        console.warn("Data imported locally but cloud sync failed:", err);
+      }
+    }
     setTables((prev) => [...prev, ...results]);
     const errors = results.filter((r) => r.result.error);
     if (errors.length) setError(errors.map((r) => `${r.result.fileName}: ${r.result.error}`).join("\n"));
     setImporting(false);
-  }, [activeProjectId, addDataSource]);
+  }, [activeProjectId, addDataSource, updateStepStatus]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);

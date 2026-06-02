@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useProjectStore } from "../../../store/projectStore";
+import { loadProjectTableProfiles, TableProfile } from "../../../lib/pipelineData";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ interface AuditEntry {
   column?: string;
   affectedRows: number;
 }
+
+type ColumnProfile = TableProfile["columns"][number];
 
 // ── Mock data ──────────────────────────────────────────────────────────────
 
@@ -84,16 +87,80 @@ export default function Clean() {
   const { activeProjectId, projects, updateStepStatus } = useProjectStore();
   const project = projects.find((p) => p.id === activeProjectId);
 
-  const [issues, setIssues] = useState<ColumnIssue[]>(INITIAL_ISSUES);
-  const [audit, setAudit] = useState<AuditEntry[]>(INITIAL_AUDIT);
+  const [profile, setProfile] = useState<TableProfile | null>(null);
+  const [issues, setIssues] = useState<ColumnIssue[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [scanned, setScanned] = useState(true);
   const [fixingAll, setFixingAll] = useState(false);
   const [activeView, setActiveView] = useState<"issues" | "preview" | "audit">("issues");
   const [filterSev, setFilterSev] = useState<IssueSeverity | "all">("all");
   const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
 
   const hasSource = project && project.dataSources.length > 0;
+
+  const buildIssues = useCallback((nextProfile: TableProfile): ColumnIssue[] => {
+    const generated: ColumnIssue[] = [];
+    nextProfile.columns.forEach((col) => {
+      if (col.nulls > 0) {
+        generated.push({
+          id: `null-${col.name}`,
+          column: col.name,
+          type: "null",
+          severity: col.nulls / Math.max(col.total, 1) > 0.1 ? "high" : "medium",
+          count: col.nulls,
+          description: `${col.nulls.toLocaleString()} rows are missing values in ${col.name}`,
+          suggestion: "Fill blanks, infer values, or filter affected rows",
+          fixed: false,
+          ignored: false,
+        });
+      }
+      if (col.unique < col.total && /id$/i.test(col.name)) {
+        generated.push({
+          id: `duplicate-${col.name}`,
+          column: col.name,
+          type: "duplicate",
+          severity: "high",
+          count: col.total - col.unique,
+          description: `${(col.total - col.unique).toLocaleString()} repeated values found in ${col.name}`,
+          suggestion: "Review duplicate identifiers before analysis",
+          fixed: false,
+          ignored: false,
+        });
+      }
+    });
+    return generated;
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    if (!project) return;
+    setScanning(true);
+    setLoadError(null);
+    try {
+      const profiles = await loadProjectTableProfiles(project);
+      const nextProfile = profiles[0] ?? null;
+      const nextIssues = nextProfile ? buildIssues(nextProfile) : [];
+      setProfile(nextProfile);
+      setIssues(nextIssues);
+      setAudit([{
+        id: "scan",
+        timestamp: new Date().toLocaleTimeString("en-US", { hour12: false }),
+        action: "detected",
+        description: nextProfile
+          ? `Auto-scan complete - ${nextIssues.length} issues found across ${nextProfile.columns.length} columns`
+          : "No saved table data found for this project",
+        affectedRows: nextIssues.reduce((sum, issue) => sum + issue.count, 0),
+      }]);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setScanning(false);
+    }
+  }, [project, buildIssues]);
+
+  useEffect(() => {
+    if (hasSource) void loadProfile();
+  }, [hasSource, loadProfile]);
 
   const visibleIssues = useMemo(() =>
     issues.filter(i =>
@@ -104,9 +171,9 @@ export default function Clean() {
   const fixedCount = issues.filter(i => i.fixed).length;
   const ignoredCount = issues.filter(i => i.ignored).length;
   const openCount = issues.filter(i => !i.fixed && !i.ignored).length;
-  const totalRows = 1200;
-  const affectedRows = 112;
-  const cleanness = Math.round(((totalRows - affectedRows + fixedCount * 10) / totalRows) * 100);
+  const totalRows = profile?.rowCount ?? 0;
+  const affectedRows = issues.filter(i => !i.fixed && !i.ignored).reduce((sum, issue) => sum + issue.count, 0);
+  const cleanness = totalRows > 0 ? Math.max(0, Math.round(((totalRows - affectedRows + fixedCount * 10) / totalRows) * 100)) : 100;
 
   const addAudit = (action: AuditAction, description: string, column?: string, rows = 0) => {
     const entry: AuditEntry = {
@@ -147,11 +214,7 @@ export default function Clean() {
   };
 
   const rescan = async () => {
-    setScanning(true);
-    await new Promise(r => setTimeout(r, 1400));
-    setScanning(false);
-    setScanned(true);
-    addAudit("detected", "Re-scan complete — no new issues found", undefined, 0);
+    await loadProfile();
   };
 
   if (!hasSource) {
@@ -164,6 +227,14 @@ export default function Clean() {
             Connect a data source in the <strong>Collect</strong> tab first, then come back here to clean it.
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: 24, fontSize: 13, color: "#791F1F" }}>
+        Could not load saved data for cleaning: {loadError}
       </div>
     );
   }
@@ -338,8 +409,8 @@ export default function Clean() {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-          {activeView === "issues" && <IssuesOverview columns={MOCK_COLUMNS} issues={issues} />}
-          {activeView === "preview" && <DataPreview columns={MOCK_COLUMNS} issues={issues} />}
+          {activeView === "issues" && <IssuesOverview columns={profile?.columns ?? []} issues={issues} totalRows={totalRows} />}
+          {activeView === "preview" && <DataPreview columns={profile?.columns ?? []} rows={profile?.rows ?? []} />}
           {activeView === "audit" && <AuditLog entries={audit} />}
         </div>
       </div>
@@ -349,12 +420,12 @@ export default function Clean() {
 
 // ── Sub-views ─────────────────────────────────────────────────────────────
 
-function IssuesOverview({ columns, issues }: { columns: typeof MOCK_COLUMNS; issues: ColumnIssue[] }) {
+function IssuesOverview({ columns, issues, totalRows }: { columns: ColumnProfile[]; issues: ColumnIssue[]; totalRows: number }) {
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Column Summary</div>
       <div style={{ fontSize: 12, color: "#73726c", marginBottom: 16 }}>
-        {columns.length} columns · 1,200 total rows · {issues.filter(i => !i.fixed && !i.ignored).length} open issues
+        {columns.length} columns � {totalRows.toLocaleString()} total rows � {issues.filter(i => !i.fixed && !i.ignored).length} open issues
       </div>
       <div style={{ display: "grid", gap: 8 }}>
         {columns.map(col => {
@@ -403,21 +474,10 @@ function IssuesOverview({ columns, issues }: { columns: typeof MOCK_COLUMNS; iss
   );
 }
 
-function DataPreview({ columns, issues }: { columns: typeof MOCK_COLUMNS; issues: ColumnIssue[] }) {
-  const rows = [
-    { customer_id: 1001, name: "Alice Johnson", email: "alice@example.com", revenue: 8420.50, signup_date: "2023-03-15", region: "North", plan: "Pro", score: 87.2 },
-    { customer_id: 1002, name: "  Bob Smith  ", email: null,                revenue: 2340.00, signup_date: "2023-07-22", region: null,    plan: "Solo", score: 42.0 },
-    { customer_id: 1003, name: "Carlos Ruiz",   email: "carlos@corp.io",    revenue: 98450.00,signup_date: "2022-11-08", region: "West",  plan: "Team", score: null },
-    { customer_id: 1004, name: "Diana Lee",     email: "diana@mail.net",    revenue: 5120.75, signup_date: "2024-01-30", region: "East",  plan: "Pro",  score: 73.5 },
-    { customer_id: 1001, name: "Alice Johnson", email: "alice@example.com", revenue: 8420.50, signup_date: "2023-03-15", region: "North", plan: "Pro",  score: 87.2 },
-    { customer_id: 1005, name: null,            email: "e@x.com",           revenue: 310.00,  signup_date: "2024-06-01", region: "South", plan: "Solo", score: 21.3 },
-  ] as Record<string, string | number | null>[];
-
-  const flagged = (col: string, val: string | number | null) => {
-    if (val === null) return { bg: "#FCEBEB", border: "#E24B4A" };
-    if (col === "customer_id" && val === 1001) return { bg: "#FAEEDA", border: "#BA7517" };
-    if (col === "name" && typeof val === "string" && val !== val.trim()) return { bg: "#FAEEDA", border: "#BA7517" };
-    if (col === "revenue" && typeof val === "number" && val > 90000) return { bg: "#FAEEDA", border: "#BA7517" };
+function DataPreview({ columns, rows }: { columns: ColumnProfile[]; rows: Record<string, unknown>[] }) {
+  const flagged = (_col: string, val: unknown) => {
+    if (val === null || val === undefined || val === "") return { bg: "#FCEBEB", border: "#E24B4A" };
+    if (typeof val === "string" && val !== val.trim()) return { bg: "#FAEEDA", border: "#BA7517" };
     return null;
   };
 
@@ -425,7 +485,7 @@ function DataPreview({ columns, issues }: { columns: typeof MOCK_COLUMNS; issues
     <div>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Data Preview</div>
       <div style={{ fontSize: 12, color: "#73726c", marginBottom: 16 }}>
-        First 6 rows — highlighted cells have detected issues
+        First {Math.min(rows.length, 100)} rows - highlighted cells have detected issues
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -443,7 +503,7 @@ function DataPreview({ columns, issues }: { columns: typeof MOCK_COLUMNS; issues
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, ri) => (
+            {rows.slice(0, 100).map((row, ri) => (
               <tr key={ri}>
                 {columns.map(col => {
                   const val = row[col.name];
@@ -455,7 +515,7 @@ function DataPreview({ columns, issues }: { columns: typeof MOCK_COLUMNS; issues
                       outline: flag ? `1px solid ${flag.border}` : undefined,
                       maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
-                      {val === null
+                      {val === null || val === undefined || val === ""
                         ? <span style={{ color: "#E24B4A", fontStyle: "italic" }}>NULL</span>
                         : <span style={{ color: "#3d3d3a" }}>{String(val)}</span>
                       }
@@ -474,13 +534,12 @@ function DataPreview({ columns, issues }: { columns: typeof MOCK_COLUMNS; issues
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <span style={{ width: 12, height: 12, background: "#FAEEDA", border: "1px solid #BA7517", borderRadius: 2, display: "inline-block" }} />
-          Duplicate / Outlier / Whitespace
+          Leading or trailing whitespace
         </span>
       </div>
     </div>
   );
 }
-
 function AuditLog({ entries }: { entries: AuditEntry[] }) {
   const actionStyle: Record<AuditAction, { color: string; icon: string }> = {
     detected:   { color: "#534AB7", icon: "🔍" },
@@ -519,3 +578,7 @@ function AuditLog({ entries }: { entries: AuditEntry[] }) {
     </div>
   );
 }
+
+
+
+

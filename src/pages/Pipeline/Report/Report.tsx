@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useProjectStore } from "../../../store/projectStore";
+import { inferReportInsights, loadProjectTableProfiles, TableProfile } from "../../../lib/pipelineData";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -91,11 +92,20 @@ export default function Report() {
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
   const [editingInsight, setEditingInsight] = useState<string | null>(null);
   const [insights, setInsights] = useState<InsightCard[]>(MOCK_INSIGHTS);
+  const [profile, setProfile] = useState<TableProfile | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [reportTitle, setReportTitle] = useState(project?.name ? `${project.name} — Analysis Report` : "Data Analysis Report");
   const [authorName, setAuthorName] = useState("DataFlow User");
   const [executiveSummary] = useState("This report presents a comprehensive analysis of the dataset, highlighting key trends, anomalies, and actionable recommendations.");
   const [recommendations] = useState(["Invest further in North region marketing.", "Investigate South region decline.", "Pursue upsell campaigns targeting Pro users.", "Review revenue outliers before board reporting."]);
-  const KPI_DATA = [{label:"Total Revenue",value:"$567,400",dir:"up" as const},{label:"H1 Growth",value:"+89%",dir:"up" as const},{label:"Top Region",value:"North",dir:"neutral" as const},{label:"South Growth",value:"-18%",dir:"down" as const}];
+  const KPI_DATA = profile
+    ? [
+        { label: "Rows", value: profile.rowCount.toLocaleString(), dir: "up" as const },
+        { label: "Columns", value: profile.columns.length.toLocaleString(), dir: "neutral" as const },
+        { label: "Missing Values", value: profile.columns.reduce((sum, col) => sum + col.nulls, 0).toLocaleString(), dir: "down" as const },
+        { label: "Source", value: profile.sourceName, dir: "neutral" as const },
+      ]
+    : [{label:"Total Revenue",value:"$567,400",dir:"up" as const},{label:"H1 Growth",value:"+89%",dir:"up" as const},{label:"Top Region",value:"North",dir:"neutral" as const},{label:"South Growth",value:"-18%",dir:"down" as const}];
 
   const toggleSection = (s: ReportSection) => {
     setIncludedSections(prev => {
@@ -107,7 +117,19 @@ export default function Report() {
 
   const generateReport = async () => {
     setGenerating(true);
-    await new Promise(r => setTimeout(r, 2200));
+    setReportError(null);
+    try {
+      if (project) {
+        const profiles = await loadProjectTableProfiles(project);
+        const nextProfile = profiles[0] ?? null;
+        setProfile(nextProfile);
+        const generatedInsights = inferReportInsights(nextProfile ?? undefined);
+        if (generatedInsights.length > 0) setInsights(generatedInsights);
+      }
+      await new Promise(r => setTimeout(r, 600));
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : String(err));
+    }
     setGenerating(false);
     setGenerated(true);
   };
@@ -219,6 +241,11 @@ export default function Report() {
           {generated && (
             <div style={{ fontSize: 10, color: "#1D9E75", textAlign: "center", marginTop: 6 }}>
               ✓ Report generated — {insights.length} insights found
+            </div>
+          )}
+          {reportError && (
+            <div style={{ fontSize: 10, color: "#791F1F", textAlign: "center", marginTop: 6 }}>
+              Could not load uploaded data: {reportError}
             </div>
           )}
         </div>
@@ -581,3 +608,4 @@ function AppendixSection() {
     </div>
   );
 }
+

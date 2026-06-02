@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useProjectStore } from "../../../store/projectStore";
 import PowerBIEmbed from "./PowerBIEmbed";
+import { aggregateTable, loadProjectTableProfiles, TableProfile } from "../../../lib/pipelineData";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -257,10 +258,42 @@ export default function Visualize() {
 
   const [savedCharts, setSavedCharts] = useState<(ChartConfig & { id: string })[]>([]);
   const [activeChartId, setActiveChartId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<TableProfile[]>([]);
+  const [chartData, setChartData] = useState(getChartData(config));
+  const [dataError, setDataError] = useState<string | null>(null);
+  const activeProfile = profiles[0];
+  const categoryColumns = activeProfile?.categoryColumns.length ? activeProfile.categoryColumns : CATEGORY_COLS;
+  const numericColumns = activeProfile?.numericColumns.length ? activeProfile.numericColumns : NUMERIC_COLS;
 
   const upd = (patch: Partial<ChartConfig>) => setConfig(c => ({ ...c, ...patch }));
   const colors = COLOR_SCHEMES[config.colorScheme];
-  const chartData = getChartData(config);
+
+  useEffect(() => {
+    if (!project) return;
+    setDataError(null);
+    loadProjectTableProfiles(project)
+      .then((loaded) => {
+        setProfiles(loaded);
+        const first = loaded[0];
+        if (first) {
+          const nextX = first.categoryColumns[0] ?? first.columns[0]?.name ?? config.xAxis;
+          const nextY = first.numericColumns[0] ?? first.columns[0]?.name ?? config.yAxis;
+          setConfig((current) => ({ ...current, xAxis: nextX, yAxis: nextY, title: `${current.aggFn} by ${nextX}` }));
+        }
+      })
+      .catch((err) => setDataError(err instanceof Error ? err.message : String(err)));
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (!activeProfile) {
+      setChartData(getChartData(config));
+      return;
+    }
+    setDataError(null);
+    aggregateTable(activeProfile.tableName, config.xAxis, config.yAxis, config.aggFn)
+      .then(setChartData)
+      .catch((err) => setDataError(err instanceof Error ? err.message : String(err)));
+  }, [activeProfile, config.xAxis, config.yAxis, config.aggFn]);
 
   const saveChart = () => {
     const id = crypto.randomUUID();
@@ -346,14 +379,14 @@ export default function Visualize() {
           <div style={{ marginBottom: 14 }}>
             <label className="label">X Axis (Category)</label>
             <select value={config.xAxis} onChange={e => upd({ xAxis: e.target.value })}>
-              {CATEGORY_COLS.map(c => <option key={c} value={c}>{c}</option>)}
+              {categoryColumns.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
           <div style={{ marginBottom: 14 }}>
             <label className="label">Y Axis (Value)</label>
             <select value={config.yAxis} onChange={e => upd({ yAxis: e.target.value })}>
-              {NUMERIC_COLS.map(c => <option key={c} value={c}>{c}</option>)}
+              {numericColumns.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
@@ -435,8 +468,13 @@ export default function Visualize() {
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, color: "#1a1a18" }}>{config.title}</div>
             )}
             {renderChart()}
+            {dataError && (
+              <div style={{ marginTop: 12, padding: "8px 12px", background: "#FCEBEB", borderRadius: 8, fontSize: 11, color: "#791F1F" }}>
+                Could not query uploaded data: {dataError}
+              </div>
+            )}
             <div style={{ marginTop: 12, padding: "8px 12px", background: "#f8f7f5", borderRadius: 8, fontSize: 11, color: "#73726c" }}>
-              Data: {chartData.x.length} data points · {config.aggFn}({config.yAxis}) · Source: {project?.dataSources?.[0]?.name || "Sample data"}
+              Data: {chartData.x.length} data points · {config.aggFn}({config.yAxis}) · Source: {activeProfile?.sourceName || "Sample data"}
             </div>
           </div>
 
@@ -514,3 +552,4 @@ export default function Visualize() {
     </div>
   );
 }
+
